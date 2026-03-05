@@ -401,10 +401,25 @@ export default function App() {
 
   const go = s => { setFade(false); setTimeout(()=>{ setScreen(s); setFade(true); },230); };
 
+  // DEV: skip to report — remove before real launch
+  const devSkipToReport = () => {
+    const bk = BANKS[0];
+    const fakeAnswers = Object.fromEntries(bk.questions.map((_,i)=>[i,4]));
+    const ns = {...state, bankAnswers:{...state.bankAnswers,[bk.id]:fakeAnswers}, currentBankIdx:0};
+    setState(ns); persist(ns); setScreen("report");
+    setTimeout(()=>doReport(ns, bk), 300);
+  };
+
+  const BUILTIN_KEY = "sk-eLecbtKDKvnlLsV2NKHfAH7SMiakbNyKeHOpLSHr0O07LpyH"; // 替换成你自己的key
+  const isFirstBank = (bk) => bk.id === "HSP";
+
   const doReport = async (st, bk) => {
     setLoad(true);
-    const key = localStorage.getItem("hsp_key")||apiKey;
-    if (!key){ setLoad(false); setNeedKey(true); return; }
+    // First bank: use built-in key. Others: require user key.
+    const key = isFirstBank(bk)
+      ? BUILTIN_KEY
+      : (localStorage.getItem("hsp_key") || apiKey);
+    if (!isFirstBank(bk) && !key){ setLoad(false); setNeedKey(true); return; }
     const ans = st.bankAnswers[bk.id]||{};
     const ref = st.bankReflections[bk.id]||{};
     const emo = st.bankEmotions[bk.id]||{};
@@ -555,6 +570,9 @@ ${journal||"（无文字记录）"}
             <span style={{fontFamily:TW,fontSize:8,color:INK3,fontWeight:FW}}>{bProgress} / {bTotal} complete</span>
           </div>
           <Btn label={sel?"Continue →":"Select an answer"} onClick={handleContinue} disabled={!sel}/>
+          <div style={{marginTop:24,textAlign:"center"}}>
+            <button onClick={devSkipToReport} style={{background:"none",border:"none",fontFamily:TW,fontSize:8,color:INK4,letterSpacing:2,cursor:"pointer",textTransform:"uppercase"}}>dev: skip to report</button>
+          </div>
         </div>
       </div>
     </>
@@ -619,7 +637,25 @@ ${journal||"（无文字记录）"}
           <Rule my={0}/>
           {needKey?(
             <div style={{marginTop:24}}>
-              <p style={{fontFamily:SONG,fontSize:14,color:INK,lineHeight:1.85,marginBottom:16,fontWeight:FW}}>需要 API Key 才能生成分析报告。</p>
+              <p style={{fontFamily:SONG,fontSize:18,color:INK,lineHeight:1.6,marginBottom:8,fontStyle:"italic"}}>Oops! 需要自掏 API 了哟～</p>
+              <TRule my={16}/>
+              <p style={{fontFamily:SONG,fontSize:13,color:INK,lineHeight:1.95,marginBottom:6}}>
+                <strong style={{fontFamily:TW,fontSize:10,letterSpacing:2,color:INK2}}>API KEY 是什么？</strong>
+              </p>
+              <p style={{fontFamily:SONG,fontSize:13,color:INK2,lineHeight:1.95,marginBottom:20}}>
+                API Key 是一串密码，用来告诉 AI 服务"这个请求是你发的"。每次生成报告，AI 会读取你 27 天的答题记录和心情日记，写一份专属于你的分析。这个过程需要调用 AI 接口，费用大约几毛钱人民币，从你自己的账户扣。
+              </p>
+              <p style={{fontFamily:SONG,fontSize:13,color:INK,lineHeight:1.95,marginBottom:6}}>
+                <strong style={{fontFamily:TW,fontSize:10,letterSpacing:2,color:INK2}}>去哪里拿？</strong>
+              </p>
+              <div style={{fontFamily:SONG,fontSize:13,color:INK2,lineHeight:2,marginBottom:20}}>
+                <div>· <strong style={{color:INK}}>Claude（推荐）</strong> — console.anthropic.com，国内需要梯子</div>
+                <div>· <strong style={{color:INK}}>DeepSeek</strong> — platform.deepseek.com，国内可直接访问，价格便宜</div>
+                <div>· <strong style={{color:INK}}>中转服务</strong> — api.aiclaude.xyz 等，支持支付宝充值</div>
+              </div>
+              <p style={{fontFamily:SONG,fontSize:12,color:INK3,lineHeight:1.8,marginBottom:20,fontStyle:"italic"}}>
+                拿到 Key 后粘贴到下方，只存在你自己的浏览器里，我们不会看到。
+              </p>
               <input value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-..."
                 style={{width:"100%",padding:"11px 14px",boxSizing:"border-box",background:"rgba(38,34,28,.05)",border:`1px solid ${INK4}`,borderRadius:1,color:INK,fontSize:13,outline:"none",fontFamily:TW,marginBottom:14,fontWeight:FW}}
               />
