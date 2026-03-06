@@ -511,7 +511,6 @@ export default function App() {
 
   const doReport = async (st, bk) => {
     setLoad(true);
-    // First bank: use built-in key. Others: require user key.
     const key = isFirstBank(bk)
       ? BUILTIN_KEY
       : (localStorage.getItem("hsp_key") || apiKey);
@@ -524,6 +523,17 @@ export default function App() {
     const pct = Math.round(score/max*100);
     const journal = Object.entries(ref).filter(([,v])=>v)
       .map(([k,v])=>`第${+k+1}题：[${emo[k]||"—"}] ${v}`).join("\n");
+
+    // Collect all previously completed banks for cross-synthesis
+    const prevBanks = BANKS.slice(0, BANKS.indexOf(bk)).filter(b => st.bankReports?.[b.id]);
+    const prevSummary = prevBanks.length > 0
+      ? prevBanks.map(b => {
+          const s = Object.values(st.bankAnswers[b.id]||{}).reduce((a,c)=>a+c,0);
+          const m = b.questions.length * 7;
+          return `【${b.label}（${b.en}）】得分 ${s}/${m}（${Math.round(s/m*100)}%）\n摘要：${(st.bankReports[b.id]||"").slice(0,300)}……`;
+        }).join("\n\n")
+      : null;
+
     const prompt = `你是一位专业且富有温度的心理分析师。
 用户用${bk.questions.length}天完成了${bk.label}（${bk.en}），7分制。
 总分：${score}/${max}（${pct}%）
@@ -531,17 +541,38 @@ export default function App() {
 ${bk.questions.map((q,i)=>`${i+1}. ${q.zh} → ${ans[i]||0}`).join("\n")}
 用户每日情绪意象与记录：
 ${journal||"（无文字记录）"}
-请生成深度分析报告，中文，有文学质感，如同一封信：
+${prevSummary ? `
+用户此前已完成以下量表：
+${prevSummary}
+` : ""}
+请生成分析报告，中文，有文学质感，如同一封信。
+
+${prevSummary ? `报告分为两个部分：
+
+第一部分——本次量表的独立分析：
 **你是谁**
 **你的礼物**
 **你的挑战**
 **关于你的记录**
-**亲爱的你**（以此开头作为结尾）`;
+
+第二部分——结合你此前所有量表的八层叠像：
+**综合来看，你是这样的人**
+**这些维度之间的关联**
+**亲爱的你**（以此开头作为结尾）
+
+` : `报告结构：
+**你是谁**
+**你的礼物**
+**你的挑战**
+**关于你的记录**
+**亲爱的你**（以此开头作为结尾）
+`}`;
+
     try {
       const res = await fetch("https://api.aiclaude.xyz/v1/messages",{
         method:"POST",
         headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
-        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:2000,messages:[{role:"user",content:prompt}]}),
+        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:3000,messages:[{role:"user",content:prompt}]}),
       });
       const data = await res.json();
       const text = data.content?.[0]?.text||"生成失败，请检查 API Key。";
@@ -603,9 +634,22 @@ ${journal||"（无文字记录）"}
     ...extra,
   });
 
+  const [showData, setShowData] = useState(false);
+  const [reportTab, setReportTab] = useState("single");
+
   // ── REST ──
   if (screen==="rest") {
     const nextQ = (bank && qIdx>=0) ? bank.questions[qIdx] : null;
+    const totalDays = Object.values(state.bankAnswers).reduce((a,b)=>a+Object.keys(b).length,0) + state.pureLog.length;
+
+    const exportData = () => {
+      const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `在野-记录-${today()}.json`; a.click();
+      URL.revokeObjectURL(url);
+    };
+
     return (
       <>
           <Paper/>
@@ -625,6 +669,32 @@ ${journal||"（无文字记录）"}
               </>
             ) : <p style={{fontFamily:SONG,fontSize:14,color:INK2,fontStyle:"italic",fontWeight:FW}}>明天继续。</p>}
             {bank && <p style={{fontFamily:TW,fontSize:9,color:INK3,letterSpacing:2,marginTop:24,fontWeight:FW}}>{bTotal-bProgress} questions remain · {bank.en}</p>}
+
+            {/* ── 方案二：常驻小字 ── */}
+            <div style={{marginTop:36,paddingTop:16,borderTop:`1px solid ${INK4}`}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+                <p style={{fontFamily:SONG,fontSize:11,color:INK3,letterSpacing:"0.05em",fontStyle:"italic"}}>记忆存于此地，勿清缓存</p>
+                {/* ── 方案三：我的数据入口 ── */}
+                <button onClick={()=>setShowData(!showData)} style={{background:"none",border:`1px solid ${INK4}`,padding:"2px 8px",fontFamily:TW,fontSize:8,color:INK3,letterSpacing:2,cursor:"pointer",textTransform:"uppercase"}}>
+                  {showData?"收起":"我的数据"}
+                </button>
+              </div>
+
+              {showData && (
+                <div style={{marginTop:16,textAlign:"left"}}>
+                  <TRule my={0}/>
+                  <p style={{fontFamily:SONG,fontSize:12,color:INK2,lineHeight:2,margin:"14px 0 16px",letterSpacing:"0.04em"}}>
+                    你留下的一切，藏在这台设备的浏览器里。它不在云端，不在服务器，只在这里。清除浏览器数据，或换一台设备，它就消失了。如果你想留住它，请导出备份。
+                  </p>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                    <span style={{fontFamily:TW,fontSize:9,color:INK3,letterSpacing:2,fontWeight:FW}}>已记录 {totalDays} 天</span>
+                    <button onClick={exportData} style={{background:"none",border:`1px solid ${INK4}`,padding:"5px 12px",fontFamily:TW,fontSize:9,color:INK2,letterSpacing:2,cursor:"pointer",textTransform:"uppercase"}}>
+                      导出备份 Export →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </>
@@ -782,12 +852,39 @@ ${journal||"（无文字记录）"}
                   <span style={{fontFamily:TW,fontSize:8,color:INK3,letterSpacing:2,fontWeight:FW}}>HIGH</span>
                 </div>
               </div>
+
+              {/* Tab switcher — only show for bank 2+ which have synthesis */}
+              {state.currentBankIdx > 0 && (
+                <div style={{display:"flex",gap:0,marginBottom:24}}>
+                  {[["single","单卷印象"],["synthesis","八层叠像"]].map(([key,label])=>(
+                    <button key={key} onClick={()=>setReportTab(key)} style={{
+                      flex:1,padding:"9px 0",
+                      background:reportTab===key?INK:"transparent",
+                      border:`1px solid ${INK4}`,
+                      borderLeft:key==="synthesis"?"none":undefined,
+                      color:reportTab===key?PAPER:INK3,
+                      fontFamily:SONG,fontSize:12,letterSpacing:"0.08em",
+                      cursor:"pointer",fontWeight:reportTab===key?"600":"normal",
+                    }}>{label}</button>
+                  ))}
+                </div>
+              )}
+
+              {/* Report text — split on the synthesis divider */}
               <div style={{fontFamily:SONG,fontSize:14,color:INK,lineHeight:2.1,letterSpacing:"0.04em",fontWeight:"600",filter:"url(#ink)"}}>
-                {report.split(/(\*\*[^*]+\*\*)/).map((part,i)=>
-                  part.startsWith("**")&&part.endsWith("**")
-                    ?<div key={i} style={{fontFamily:TW,fontSize:10,letterSpacing:3,color:INK2,textTransform:"uppercase",marginTop:28,marginBottom:8,fontWeight:FW}}>{part.slice(2,-2)}</div>
-                    :<span key={i}>{part}</span>
-                )}
+                {(() => {
+                  const parts = report.split("**综合来看");
+                  const singleText = parts[0];
+                  const synthesisText = parts.length > 1 ? "**综合来看" + parts[1] : null;
+                  const displayText = (state.currentBankIdx > 0 && synthesisText)
+                    ? (reportTab === "single" ? singleText : synthesisText)
+                    : report;
+                  return displayText.split(/(\*\*[^*]+\*\*)/).map((part,i)=>
+                    part.startsWith("**")&&part.endsWith("**")
+                      ?<div key={i} style={{fontFamily:TW,fontSize:10,letterSpacing:3,color:INK2,textTransform:"uppercase",marginTop:28,marginBottom:8,fontWeight:FW}}>{part.slice(2,-2)}</div>
+                      :<span key={i}>{part}</span>
+                  );
+                })()}
               </div>
               <TRule my={32}/>
               <Btn label={`开启下一套  ${BANKS[state.currentBankIdx+1]?.label||"纯粹记录"} →`} onClick={handleNextBank}/>
