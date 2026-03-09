@@ -479,6 +479,7 @@ export default function App() {
   const [apiKey,  setApiKey] = useState(localStorage.getItem("hsp_key")||"");
   const [needKey, setNeedKey]= useState(false);
   const [user,    setUser]   = useState(null);
+  const userRef = useRef(null);
   const [authScreen, setAuthScreen] = useState(null);
   const [authErr,   setAuthErr]     = useState("");
   const authEmailRef = useRef("");
@@ -487,18 +488,19 @@ export default function App() {
 
   // Supabase auth listener
   const didSyncRef = useRef(false);
+  useEffect(()=>{ userRef.current = user; },[user]);
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{
       if (session?.user) {
-        setUser(session.user);
+        setUser(session.user); userRef.current=session.user;
         if (!didSyncRef.current) { didSyncRef.current=true; syncDown(session.user.id); }
       }
     });
     const {data:{subscription}} = supabase.auth.onAuthStateChange((_,session)=>{
       if (session?.user) {
-        setUser(session.user);
+        setUser(session.user); userRef.current=session.user;
         if (!didSyncRef.current) { didSyncRef.current=true; syncDown(session.user.id); }
-      } else { setUser(null); didSyncRef.current=false; }
+      } else { setUser(null); userRef.current=null; didSyncRef.current=false; }
     });
     return ()=> subscription.unsubscribe();
   },[]);
@@ -523,7 +525,7 @@ export default function App() {
     } catch(e) { console.log("syncUp error", e); }
   };
 
-  const save = (ns) => { persist(ns); setState(ns); if (user) syncUp(ns, user.id).catch(console.error); };
+  const save = (ns) => { persist(ns); setState(ns); if (userRef.current) syncUp(ns, userRef.current.id).catch(console.error); };
 
   const handleRegister = async () => {
     setAuthErr("");
