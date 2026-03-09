@@ -604,7 +604,7 @@ export default function App() {
     if (!msg) return "";
     if (msg.includes("already registered") || msg.includes("already been registered")) return "抓到你了！这个邮箱已注册，快去登录 →";
     if (msg.includes("valid password") || msg.includes("password")) return "不要犯马虎，好好写密码！";
-    if (msg.includes("Invalid login") || msg.includes("Invalid email or password")) return "邮箱或密码不对，再想想？";
+    if (msg.includes("Invalid login") || msg.includes("Invalid email or password") || msg.includes("invalid") || msg.includes("credentials")) return "写错了写错了！仔细想认真写！";
     if (msg.includes("Email not confirmed")) return "邮箱还没验证，去信箱看看。";
     if (msg.includes("User not found")) return "没找到这个账号，要不要注册一个？";
     if (msg.includes("Too many requests")) return "太着急了，稍等一会儿再试。";
