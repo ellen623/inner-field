@@ -486,13 +486,19 @@ export default function App() {
   const textRef = useRef(null);
 
   // Supabase auth listener
+  const didSyncRef = useRef(false);
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{
-      if (session?.user) { setUser(session.user); syncDown(session.user.id); }
+      if (session?.user) {
+        setUser(session.user);
+        if (!didSyncRef.current) { didSyncRef.current=true; syncDown(session.user.id); }
+      }
     });
     const {data:{subscription}} = supabase.auth.onAuthStateChange((_,session)=>{
-      if (session?.user) { setUser(session.user); syncDown(session.user.id); }
-      else setUser(null);
+      if (session?.user) {
+        setUser(session.user);
+        if (!didSyncRef.current) { didSyncRef.current=true; syncDown(session.user.id); }
+      } else { setUser(null); didSyncRef.current=false; }
     });
     return ()=> subscription.unsubscribe();
   },[]);
