@@ -498,15 +498,23 @@ export default function App() {
   },[]);
 
   const syncDown = async (uid) => {
-    const {data} = await supabase.from("user_data").select("data").eq("user_id",uid).single();
-    if (data?.data && Object.keys(data.data).length > 0) {
-      setState(data.data); persist(data.data);
-    }
+    try {
+      const {data, error} = await supabase.from("user_data").select("data").eq("user_id",uid).maybeSingle();
+      if (data?.data && Object.keys(data.data).length > 0) {
+        persist(data.data);
+        setState(data.data);
+      }
+    } catch(e) { console.log("syncDown error", e); }
   };
 
   const syncUp = async (ns, uid) => {
     if (!uid) return;
-    await supabase.from("user_data").upsert({user_id:uid, data:ns, updated_at:new Date().toISOString()},{onConflict:"user_id"});
+    try {
+      await supabase.from("user_data").upsert(
+        {user_id:uid, data:ns, updated_at:new Date().toISOString()},
+        {onConflict:"user_id", ignoreDuplicates:false}
+      );
+    } catch(e) { console.log("syncUp error", e); }
   };
 
   const save = (ns) => { save(ns); if (user) syncUp(ns, user.id); };
