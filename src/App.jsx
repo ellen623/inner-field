@@ -483,6 +483,7 @@ export default function App() {
   const userRef = useRef(null);
   const [authScreen, setAuthScreen] = useState(null);
   const [authErr,   setAuthErr]     = useState("");
+  const [syncFailed, setSyncFailed] = useState(false);
   const [resetSent, setResetSent]   = useState(false);
   const [resetMode, setResetMode]   = useState(false);
   const [newPassword, setNewPassword] = useState("");
@@ -544,12 +545,13 @@ export default function App() {
   const syncUp = async (ns, uid) => {
     if (!uid) return;
     try {
-      const res = await supabase.from("user_data").upsert(
+      const {error} = await supabase.from("user_data").upsert(
         {user_id:uid, data:ns, updated_at:new Date().toISOString()},
         {onConflict:"user_id", ignoreDuplicates:false}
       );
-      console.log("syncUp result", res);
-    } catch(e) { console.log("syncUp error", e); }
+      if (error) { console.log("syncUp error", error); setSyncFailed(true); }
+      else setSyncFailed(false);
+    } catch(e) { console.log("syncUp error", e); setSyncFailed(true); }
   };
 
   const save = (ns) => { const stamped = {...ns, savedAt: new Date().toISOString()}; persist(stamped); setState(stamped); if (userRef.current) syncUp(stamped, userRef.current.id); };
@@ -789,6 +791,32 @@ ${prevSummary ? `报告分为两个部分：
   const [showData, setShowData] = useState(false);
   const [reportTab, setReportTab] = useState("single");
 
+  // ── SYNC ERROR BANNER ──
+  const SyncErrorBanner = () => syncError ? (
+    <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:80,background:"rgba(18,13,6,.88)",padding:"10px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <span style={{fontFamily:SONG,fontSize:11,color:"rgba(237,229,213,.85)",letterSpacing:"0.04em"}}>
+        云端同步失败，数据暂存于本地。请检查网络后重试。
+      </span>
+      <button onClick={()=>{ if(userRef.current) syncUp(load(), userRef.current.id); }} 
+        style={{background:"none",border:"1px solid rgba(237,229,213,.3)",padding:"3px 10px",fontFamily:TW,fontSize:8,color:"rgba(237,229,213,.7)",letterSpacing:2,cursor:"pointer",whiteSpace:"nowrap",marginLeft:12}}>
+        重试
+      </button>
+    </div>
+  ) : null;
+
+  // ── SYNC FAILED BANNER ──
+  const SyncFailedBanner = () => syncFailed ? (
+    <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"rgba(18,13,6,.88)",padding:"10px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <span style={{fontFamily:SONG,fontSize:12,color:"rgba(237,229,213,.85)",letterSpacing:"0.03em"}}>
+        同步失败，数据暂存于本地。请检查网络后重试。
+      </span>
+      <button onClick={()=>{ if(userRef.current) syncUp(load(), userRef.current.id); }}
+        style={{background:"none",border:"1px solid rgba(237,229,213,.4)",padding:"4px 12px",fontFamily:TW,fontSize:8,color:"rgba(237,229,213,.7)",letterSpacing:2,cursor:"pointer",whiteSpace:"nowrap",marginLeft:12}}>
+        重试
+      </button>
+    </div>
+  ) : null;
+
   // ── RESET PASSWORD SCREEN ──
   if (resetScreen) return (
     <>
@@ -898,6 +926,11 @@ ${prevSummary ? `报告分为两个部分：
     <div style={{position:"fixed",top:18,right:20,zIndex:50,display:"flex",alignItems:"center",gap:8}}>
       {user ? (
         <>
+          {syncError && (
+            <span style={{fontFamily:TW,fontSize:8,color:"rgba(160,60,40,.85)",letterSpacing:1,border:"1px solid rgba(160,60,40,.3)",padding:"3px 8px"}}>
+              同步失败，检查网络
+            </span>
+          )}
           <span style={{fontFamily:TW,fontSize:8,color:INK3,letterSpacing:1}}>{user.email?.split("@")[0]}</span>
           <button onClick={handleLogout} style={{background:"none",border:`1px solid ${INK4}`,padding:"3px 8px",fontFamily:TW,fontSize:8,color:INK3,letterSpacing:2,cursor:"pointer"}}>登出</button>
         </>
@@ -926,6 +959,8 @@ ${prevSummary ? `报告分为两个部分：
         <InkFilters/>
         {authScreen && <AuthOverlay/>}
         <UserBadge/>
+        <SyncFailedBanner/>
+        <SyncErrorBanner/>
         <div style={W()}>
           <div style={{maxWidth:420,width:"100%",textAlign:"center"}}>
             {bank && <div style={{fontFamily:NUM,fontSize:36,color:INK,letterSpacing:"0.04em",lineHeight:1,marginBottom:20,fontWeight:"normal"}}>{String(bProgress).padStart(2,"0")}<span style={{fontSize:14,letterSpacing:1,color:INK2}}> / {String(bTotal).padStart(2,"0")}</span></div>}
@@ -1045,6 +1080,8 @@ ${prevSummary ? `报告分为两个部分：
       <InkFilters/>
       {authScreen && <AuthOverlay/>}
       <UserBadge/>
+      <SyncFailedBanner/>
+      <SyncErrorBanner/>
       <div style={W()}>
         <div style={{maxWidth:460,width:"100%"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16}}>
@@ -1094,6 +1131,8 @@ ${prevSummary ? `报告分为两个部分：
       <InkFilters/>
       {authScreen && <AuthOverlay/>}
       <UserBadge/>
+      <SyncFailedBanner/>
+      <SyncErrorBanner/>
       <div style={W({justifyContent:"flex-start",paddingTop:44,paddingBottom:52})}>
         <div style={{maxWidth:460,width:"100%"}}>
           <Label t="一句值得驻留的话 · A line to dwell on"/>
@@ -1137,6 +1176,8 @@ ${prevSummary ? `报告分为两个部分：
       <InkFilters/>
       {authScreen && <AuthOverlay/>}
       <UserBadge/>
+      <SyncFailedBanner/>
+      <SyncErrorBanner/>
       <div style={W({justifyContent:"flex-start",paddingTop:44,paddingBottom:64})}>
         <div style={{maxWidth:500,width:"100%"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16}}>
