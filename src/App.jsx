@@ -668,15 +668,16 @@ export default function App() {
 
   const go = s => { setFade(false); setTimeout(()=>{ setScreen(s); setFade(true); },230); };
 
-  const BUILTIN_KEY = "YOUR_API_KEY_HERE"; // 替换成你自己的key
+  const BUILTIN_KEY = import.meta.env.VITE_ANTHROPIC_KEY || "";
   const isFirstBank = (bk) => bk.id === "HSP";
 
   const doReport = async (st, bk) => {
     setLoad(true);
-    const key = isFirstBank(bk)
+    const builtinValid = BUILTIN_KEY && BUILTIN_KEY !== "YOUR_API_KEY_HERE";
+    const key = (isFirstBank(bk) && builtinValid)
       ? BUILTIN_KEY
       : (localStorage.getItem("hsp_key") || apiKey);
-    if (!isFirstBank(bk) && !key){ setLoad(false); setNeedKey(true); return; }
+    if (!key){ setLoad(false); setNeedKey(true); return; }
     const ans = st.bankAnswers[bk.id]||{};
     const ref = st.bankReflections[bk.id]||{};
     const emo = st.bankEmotions[bk.id]||{};
