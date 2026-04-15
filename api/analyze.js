@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const upstream = await fetch("https://api.anthropic.com/v1/messages", {
+    const upstream = await fetch("https://api.aiclaude.xyz/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
