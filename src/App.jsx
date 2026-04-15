@@ -669,16 +669,12 @@ export default function App() {
 
   const go = s => { setFade(false); setTimeout(()=>{ setScreen(s); setFade(true); },230); };
 
-  const BUILTIN_KEY = import.meta.env.VITE_ANTHROPIC_KEY || "";
   const isFirstBank = (bk) => bk.id === "HSP";
 
   const doReport = async (st, bk) => {
     setLoad(true);
-    const builtinValid = BUILTIN_KEY && BUILTIN_KEY !== "YOUR_API_KEY_HERE";
-    const key = (isFirstBank(bk) && builtinValid)
-      ? BUILTIN_KEY
-      : (localStorage.getItem("hsp_key") || apiKey);
-    if (!key){ setLoad(false); setNeedKey(true); return; }
+    const userKey = localStorage.getItem("hsp_key") || apiKey;
+    if (!isFirstBank(bk) && !userKey){ setLoad(false); setNeedKey(true); return; }
     const ans = st.bankAnswers[bk.id]||{};
     const ref = st.bankReflections[bk.id]||{};
     const emo = st.bankEmotions[bk.id]||{};
@@ -733,10 +729,12 @@ ${prevSummary ? `报告分为两个部分：
 `}`;
 
     try {
-      const res = await fetch("https://api.aiclaude.xyz/v1/messages",{
-        method:"POST",
-        headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
-        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:3000,messages:[{role:"user",content:prompt}]}),
+      const body = { prompt };
+      if (!isFirstBank(bk) && userKey) body.userKey = userKey;
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       const text = data.content?.[0]?.text||(data.error ? `API错误：${data.error.type} - ${data.error.message}` : "生成失败，请检查 API Key。");
