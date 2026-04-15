@@ -739,10 +739,10 @@ ${prevSummary ? `报告分为两个部分：
         body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:3000,messages:[{role:"user",content:prompt}]}),
       });
       const data = await res.json();
-      const text = data.content?.[0]?.text||"生成失败，请检查 API Key。";
+      const text = data.content?.[0]?.text||(data.error ? `API错误：${data.error.type} - ${data.error.message}` : "生成失败，请检查 API Key。");
       const ns = {...st, bankReports:{...st.bankReports,[bk.id]:text}};
       save(ns); setReport(text);
-    } catch { setReport("网络错误，请稍后重试。"); }
+    } catch(e) { setReport(`网络错误：${e?.message||String(e)}`); }
     setLoad(false);
   };
 
