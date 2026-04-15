@@ -479,6 +479,7 @@ export default function App() {
   const [loading, setLoad]   = useState(false);
   const [apiKey,  setApiKey] = useState(localStorage.getItem("hsp_key")||"");
   const [needKey, setNeedKey]= useState(false);
+  const [reviewBankId, setReviewBankId] = useState(null);
   const [user,    setUser]   = useState(null);
   const userRef = useRef(null);
   const [authScreen, setAuthScreen] = useState(null);
@@ -758,6 +759,14 @@ ${prevSummary ? `报告分为两个部分：
     else go("rest");
   };
 
+  const handleViewReport = (bk) => {
+    const existing = state.bankReports?.[bk.id];
+    setReviewBankId(bk.id);
+    setNeedKey(false);
+    if (existing) { setReport(existing); go("report"); }
+    else { go("report"); setTimeout(() => doReport(state, bk), 300); }
+  };
+
   const handleNextBank = () => {
     const next = state.currentBankIdx+1;
     const done = next>=BANKS.length;
@@ -972,6 +981,33 @@ ${prevSummary ? `报告分为两个部分：
             ) : <p style={{fontFamily:SONG,fontSize:14,color:INK2,fontStyle:"italic",fontWeight:FW}}>明天继续。</p>}
             {bank && <p style={{fontFamily:TW,fontSize:9,color:INK3,letterSpacing:2,marginTop:24,fontWeight:FW}}>{bTotal-bProgress} questions remain · {bank.en}</p>}
 
+            {/* ── 往期分析入口 ── */}
+            {(() => {
+              const completedPrev = BANKS.slice(0, state.currentBankIdx).filter(
+                b => Object.keys(state.bankAnswers[b.id]||{}).length >= b.questions.length
+              );
+              if (completedPrev.length === 0) return null;
+              return (
+                <div style={{marginTop:28,paddingTop:16,borderTop:`1px solid ${INK4}`}}>
+                  <div style={{fontFamily:TW,fontSize:9,color:INK3,letterSpacing:3,marginBottom:14,textTransform:"uppercase"}}>往期分析 · Past Reports</div>
+                  {completedPrev.map(bk => {
+                    const hasReport = !!state.bankReports?.[bk.id];
+                    return (
+                      <div key={bk.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                        <div style={{textAlign:"left"}}>
+                          <div style={{fontFamily:TW,fontSize:9,color:INK2,letterSpacing:1}}>{bk.label}</div>
+                          <div style={{fontFamily:TW,fontSize:8,color:INK3,letterSpacing:1}}>{bk.en}</div>
+                        </div>
+                        <button onClick={()=>handleViewReport(bk)} style={{background:"none",border:`1px solid ${INK4}`,padding:"4px 12px",fontFamily:TW,fontSize:8,color:INK2,letterSpacing:2,cursor:"pointer",flexShrink:0}}>
+                          {hasReport?"查看分析 →":"生成分析 →"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
             {/* ── 数据模块：未登录 / 已登录 两态 ── */}
             <div style={{marginTop:36,paddingTop:16,borderTop:`1px solid ${INK4}`}}>
               {!user ? (
@@ -1163,7 +1199,11 @@ ${prevSummary ? `报告分为两个部分：
   );
 
   // ── REPORT ──
-  if (screen==="report") return (
+  if (screen==="report") {
+    const reportBank = reviewBankId ? BANKS.find(b=>b.id===reviewBankId) : bank;
+    const reportBTotal = reportBank ? reportBank.questions.length : 0;
+    const reportBankIdx = reviewBankId ? BANKS.findIndex(b=>b.id===reviewBankId) : state.currentBankIdx;
+  return (
     <>
       <Paper/>
       <InkFilters/>
@@ -1174,12 +1214,12 @@ ${prevSummary ? `报告分为两个部分：
         <div style={{maxWidth:500,width:"100%"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16}}>
             <div>
-              <Label t={`${bank?.en||"Portrait"} · 内心图景`}/>
-              <div style={{fontFamily:TW,fontSize:9,color:INK3,marginTop:3,letterSpacing:2,fontWeight:FW}}>{bank?.label} · Complete</div>
+              <Label t={`${reportBank?.en||"Portrait"} · 内心图景`}/>
+              <div style={{fontFamily:TW,fontSize:9,color:INK3,marginTop:3,letterSpacing:2,fontWeight:FW}}>{reportBank?.label} · Complete</div>
             </div>
             <div style={{fontFamily:TW,fontSize:26,color:INK,lineHeight:1,letterSpacing:"0.04em",fontWeight:700}}>
-              {Object.values(state.bankAnswers[bank?.id]||{}).reduce((a,b)=>a+b,0)}
-              <span style={{fontSize:11,color:INK3,letterSpacing:1}}>/{bTotal*7}</span>
+              {Object.values(state.bankAnswers[reportBank?.id]||{}).reduce((a,b)=>a+b,0)}
+              <span style={{fontSize:11,color:INK3,letterSpacing:1}}>/{reportBTotal*7}</span>
             </div>
           </div>
           <Rule my={0}/>
@@ -1207,7 +1247,7 @@ ${prevSummary ? `报告分为两个部分：
               <input value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-..."
                 style={{width:"100%",padding:"11px 14px",boxSizing:"border-box",background:"rgba(38,34,28,.05)",border:`1px solid ${INK4}`,borderRadius:1,color:INK,fontSize:13,outline:"none",fontFamily:TW,marginBottom:14,fontWeight:FW}}
               />
-              <Btn label="Generate Report →" onClick={()=>{localStorage.setItem("hsp_key",apiKey);setNeedKey(false);doReport(state,bank);}}/>
+              <Btn label="Generate Report →" onClick={()=>{localStorage.setItem("hsp_key",apiKey);setNeedKey(false);doReport(state,reportBank);}}/>
             </div>
           ):loading?(
             <div style={{textAlign:"center",padding:"52px 0"}}>
@@ -1220,7 +1260,7 @@ ${prevSummary ? `报告分为两个部分：
             <div style={{marginTop:24}}>
               <div style={{marginBottom:28}}>
                 <div style={{height:1,background:INK4,position:"relative",marginBottom:5}}>
-                  <div style={{position:"absolute",top:0,left:0,height:"100%",width:`${(Object.values(state.bankAnswers[bank?.id]||{}).reduce((a,b)=>a+b,0)/(bTotal*7))*100}%`,background:INK}}/>
+                  <div style={{position:"absolute",top:0,left:0,height:"100%",width:`${(Object.values(state.bankAnswers[reportBank?.id]||{}).reduce((a,b)=>a+b,0)/(reportBTotal*7))*100}%`,background:INK}}/>
                 </div>
                 <div style={{display:"flex",justifyContent:"space-between"}}>
                   <span style={{fontFamily:TW,fontSize:8,color:INK3,letterSpacing:2,fontWeight:FW}}>LOW</span>
@@ -1229,7 +1269,7 @@ ${prevSummary ? `报告分为两个部分：
               </div>
 
               {/* Tab switcher — only show for bank 2+ which have synthesis */}
-              {state.currentBankIdx > 0 && (
+              {reportBankIdx > 0 && (
                 <div style={{display:"flex",gap:0,marginBottom:24}}>
                   {[["single","单卷印象"],["synthesis","八层叠像"]].map(([key,label])=>(
                     <button key={key} onClick={()=>setReportTab(key)} style={{
@@ -1251,7 +1291,7 @@ ${prevSummary ? `报告分为两个部分：
                   const parts = report.split("**综合来看");
                   const singleText = parts[0];
                   const synthesisText = parts.length > 1 ? "**综合来看" + parts[1] : null;
-                  const displayText = (state.currentBankIdx > 0 && synthesisText)
+                  const displayText = (reportBankIdx > 0 && synthesisText)
                     ? (reportTab === "single" ? singleText : synthesisText)
                     : report;
                   return displayText.split(/(\*\*[^*]+\*\*)/).map((part,i)=>
@@ -1262,15 +1302,21 @@ ${prevSummary ? `报告分为两个部分：
                 })()}
               </div>
               <TRule my={32}/>
-              <Btn label={`开启下一套  ${BANKS[state.currentBankIdx+1]?.label||"纯粹记录"} →`} onClick={handleNextBank}/>
-              <div style={{height:8}}/>
-              <Btn ghost label="重新开始  Start Over" onClick={()=>{if(window.confirm("重置所有记录？")){localStorage.removeItem(KEY);const ns=initState();setState(ns);if(user)syncUp(ns,user.id);setScreen("q");}}}/>
+              {reviewBankId ? (
+                <Btn ghost label="← 返回" onClick={()=>{ setReviewBankId(null); go("rest"); }}/>
+              ) : (
+                <>
+                  <Btn label={`开启下一套  ${BANKS[state.currentBankIdx+1]?.label||"纯粹记录"} →`} onClick={handleNextBank}/>
+                  <div style={{height:8}}/>
+                  <Btn ghost label="重新开始  Start Over" onClick={()=>{if(window.confirm("重置所有记录？")){localStorage.removeItem(KEY);const ns=initState();setState(ns);if(user)syncUp(ns,user.id);setScreen("q");}}}/>
+                </>
+              )}
             </div>
           )}
         </div>
       </div>
     </>
-  );
+  );};
 
   // ── PURE EMOTION ──
   if (screen==="pure") {
