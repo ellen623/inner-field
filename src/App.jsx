@@ -659,7 +659,8 @@ export default function App() {
     if (!bank) { setScreen("pure"); return; }
     if (bProgress >= bTotal) {
       const rep = state.bankReports[bank.id];
-      if (rep) { setReport(rep); setScreen("report"); }
+      const isError = rep && (rep.startsWith("API错误") || rep.startsWith("网络错误") || rep.startsWith("生成失败"));
+      if (rep && !isError) { setReport(rep); setScreen("report"); }
       else { setScreen("report"); doReport(state, bank); }
       return;
     }
@@ -737,7 +738,8 @@ ${prevSummary ? `报告分为两个部分：
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      const text = data.content?.[0]?.text||(data.error ? `API错误：${data.error.type} - ${data.error.message}` : "生成失败，请检查 API Key。");
+      if (data.error) { setReport(`API错误：${data.error.type} - ${data.error.message}`); setLoad(false); return; }
+      const text = data.content?.[0]?.text || "生成失败，请检查 API Key。";
       const ns = {...st, bankReports:{...st.bankReports,[bk.id]:text}};
       save(ns); setReport(text);
     } catch(e) { setReport(`网络错误：${e?.message||String(e)}`); }
