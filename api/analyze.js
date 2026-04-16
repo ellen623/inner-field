@@ -2,28 +2,32 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
   const { prompt, userKey } = req.body;
-  const key = process.env.ANTHROPIC_KEY || userKey;
+  const key = process.env.GEMINI_KEY || userKey;
 
   if (!key) {
     return res.status(400).json({ error: { type: "no_key", message: "No API key available" } });
   }
 
   try {
-    const upstream = await fetch("https://api.aiclaude.xyz/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 3000,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
+    const upstream = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: 3000 },
+        }),
+      }
+    );
     const data = await upstream.json();
-    res.status(upstream.status).json(data);
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (text) {
+      res.status(200).json({ content: [{ text }] });
+    } else {
+      const msg = data.error?.message || JSON.stringify(data);
+      res.status(upstream.status).json({ error: { type: "gemini_error", message: msg } });
+    }
   } catch (e) {
     res.status(500).json({ error: { type: "server_error", message: e.message } });
   }
